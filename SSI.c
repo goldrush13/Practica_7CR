@@ -1,39 +1,46 @@
-// linea 241 registros SSI
+// MODULO 2 - PUERTO D - 
+// 
+
 #include "lib/include.h"
 extern void Configurar_SSI2(void)       // método configurar SPI
 {
     
-    SYSCTL->RCGCSSI |= (1<<2);         // Activo el Modulo 2 del SSI2 pag 390
-    SYSCTL->RCGCGPIO |= (1<<3);        // El bit 3 corresponde al puerto D pg 382
+    SYSCTL->RCGCSSI |= (1<<2);          // Activo el reloj para el Modulo 2 del SSI2 pag 390
+    SYSCTL->RCGCGPIO |= (1<<3);         // El bit 3 corresponde al puerto D pg 382
     
     GPIOD_AHB->DIR |= (0<<3) | (1<<2) | (1<<1) | (0<<0); //selector es salida = 1
-    GPIOD_AHB->AFSEL = (1<<3)|(1<<2)|(1<<1)|(1<<0);         // Le digo que estos pines van a sercontrolados por otro periferico. Antes del 4 al 7. pg 770
+    //                 SCLK     CS       MOSI      MISO
+    GPIOD_AHB->AFSEL = (1<<3) | (1<<2) | (1<<1) | (1<<0);         // Le digo que estos pines van a ser controlados por otro periferico (SSI) pg 770  
+    GPIOD_AHB->PCTL = (GPIOD_AHB->PCTL&0xFFFF0000) | 0x0000FFFF;  // Combinación pp 787, 1808 (segun esta pg debo poner un 15)
+    //GPIOD_AHB->PCTL |= 0x0000FFFF; // tabla p.788, video santama
     
-    GPIOD_AHB->PCTL = (GPIOD_AHB->PCTL&0xFFFF0000) | 0x0000FFFF;  // Debo poner un 15 en hexadecimal porque ese corresponde al SPI modulo 2, tabla pg 788
-    //GPIOD_AHB->PCTL &= 0xFFFF0000;
-    //GPIOD_AHB->PCTL |= 0x0000FFFF; // tabla p.788
-    
+    // Entradas digitales
     GPIOD_AHB->DEN |= (1<<0)|(1<<1)|(1<<2)|(1<<3);  // Digitales porque voy a enviar una trama digital
     //                MISO    MOSI    CS    SCLK
 
-    //GPIOD_AHB->DATA |= (1<<5); //registrar CS
-    //GPIOB->PUR |= (0<<7)|(0<<6)|(0<<5)|(0<<4);
-    //GPIOB->PDR |= (0<<7)|(0<<6)|(0<<5)|(0<<4);
-    //GPIOB->AMSEL |= (0<<7)|(0<<6)|(0<<5)|(0<<4);
     
-    SSI2->CR1 = (0<<1);          // SSE=0 deshabilitar modulo (ensure that the SSE bit in the SSICR1 register is clear)
+    SSI2->CR1 = (0<<1);          // SSE=0 DESHABILITAR modulo (ensure that the SSE bit in the SSICR1 register is clear)
+    // minuto 25, pte5
+    //NOTA: El CR1 me permite indicar cuantos bits voy a mandar, y conf la velocidad del reloj de transmision      
+    
     
     // SELECCIONO SI EL QSSI VA A SER MAESTRO O ESCLAVO:
     SSI2->CR1 = (0<<2);          // En el bit 2 se le pone 0 para que sea maestro MS = 0 modo maestro pp 1248 
     
-    SSI2->CC = (0x0<<0);         //Le digo que trabajaré con el reloj del sistema (system clock = 50MHz) pp 1386
+    SSI2->CC = (0x0<<0);         // Le digo que trabajaré con el reloj del sistema (system clock = 50MHz) pp 1386
     
 
-    // Para el registro SSICPSR:
-    // SSInClk = SysClk / (CPSDVSR * (1 + SCR))   despejar SCR
-    // 2 500 000 = 50 000 000/(2*(1+SCR))
-    // SCR = (50 000 000/2 500 000*2) - 1 = 9
-    SSI2->CPSR =0x2;             // 2.5 MHZ pp. 1376
+    // Para el registro SSICPSR (clock prescale):
+    // pp.1242 
+    // Assuming the system clock is 20 MHz, the bit rate calculation would be:
+    // SSInClk   = SysClk    / (CPSDVSR * (1 + SCR))   despejar SCR
+    // 1 000 000 = 20 000 000/ (      2 * (1 + SCR))
+    
+    // SCR = (SysClk/SSInClk*CPSDVSR) - 1 = 9
+    // SCR = (20 000 000/1 000 000*2) - 1 = 9
+    // CPSDVSR y SSInClk son al azar
+    
+    SSI2->CPSR = 0x2;
 
 //  SSI2->CR0 = (0x9<<8) | 0x07; // 0x07 porque envía datos de 8 bits pp. resgistro 1369  SE CAMBIA A 12 QUE CORRESPONDEN AL DAC MCP4921
     SSI2->CR0 = (0x9<<8) | 0x0B; // datos de 12 bits,  SE CAMBIA A 'B' (12 bits DACMCP4921)
@@ -43,6 +50,8 @@ extern void Configurar_SSI2(void)       // método configurar SPI
 }
 
 
+
+////////////////////////////  COMUNICACIÓN SPI //////////////////////
 
 
 extern void SPI_write(uint8_t data)
